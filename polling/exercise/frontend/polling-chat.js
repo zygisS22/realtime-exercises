@@ -15,13 +15,38 @@ chat.addEventListener("submit", function (e) {
 });
 
 async function postNewMsg(user, text) {
-  // post to /poll a new message
-  // write code here
+  const data = {
+    user,
+    text,
+  };
+
+  const options = {
+    method: "POST",
+    body: JSON.stringify(data),
+    headers: {
+      "Content-Type": "application/json",
+    },
+  };
+  await fetch("/poll", options);
 }
 
 async function getNewMsgs() {
-  // poll the server
-  // write code here
+  let json;
+  try {
+    const res = await fetch("/poll");
+    json = await res.json();
+
+    if (res.status >= 400) {
+      throw new Error("request did not succeed", res.status);
+    }
+
+    allChat = json.msg;
+    render();
+    failedTries = 0;
+  } catch (e) {
+    console.error("polling error", e);
+    failedTries++;
+  }
 }
 
 function render() {
@@ -36,6 +61,16 @@ function render() {
 // given a user and a msg, it returns an HTML string to render to the UI
 const template = (user, msg) =>
   `<li class="collection-item"><span class="badge">${user}</span>${msg}</li>`;
+const BACKOFF = 5000;
+let failedTries = 0;
+let timeToMakeNextRequest = 0;
+async function raftTimer(time) {
+  if (timeToMakeNextRequest <= time) {
+    await getNewMsgs();
+    timeToMakeNextRequest = time + INTERVAL + failedTries * BACKOFF;
+  }
 
-// make the first request
-getNewMsgs();
+  requestAnimationFrame(raftTimer);
+}
+
+requestAnimationFrame(raftTimer);
